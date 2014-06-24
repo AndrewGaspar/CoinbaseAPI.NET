@@ -12,6 +12,12 @@ namespace Bitlet.Coinbase.Models
         Complete
     }
 
+    public class TransactionResponse
+    {
+        [JsonProperty("transaction")]
+        public TransactionResponseEntity Transaction { get; set; }
+    }
+
     public class TransactionStatusEnumConverter : JsonConverter
     {
 
@@ -46,7 +52,7 @@ namespace Bitlet.Coinbase.Models
         }
     }
 
-    public class TransactionResponseItem
+    public class TransactionResponseEntity
     {
         [JsonProperty("id")]
         public string Id { get; set; }

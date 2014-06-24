@@ -4,6 +4,12 @@ namespace Bitlet.Coinbase.Models
 {
     using Primitives;
 
+    public class UserResponse
+    {
+        [JsonProperty("user")]
+        public UserResponseEntity User { get; set; }
+    }
+
     public class ShortUserResponse
     {
         [JsonProperty("id")]
@@ -16,7 +22,7 @@ namespace Bitlet.Coinbase.Models
         public string Email { get; set; }
     }
 
-    public class UserResponse : ShortUserResponse
+    public class UserResponseEntity : ShortUserResponse
     {
         [JsonProperty("time_zone")]
         public string TimeZone { get; set; }

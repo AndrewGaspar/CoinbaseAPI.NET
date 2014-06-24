@@ -5,12 +5,6 @@ namespace Bitlet.Coinbase.Models
 {
     using Primitives;
 
-    public class TransactionResponse
-    {
-        [JsonProperty("transaction")]
-        public TransactionResponseItem Transaction { get; set; }
-    }
-
     public interface ITransactionsResponse
     {
         ShortUserResponse CurrentUser { get; set; }

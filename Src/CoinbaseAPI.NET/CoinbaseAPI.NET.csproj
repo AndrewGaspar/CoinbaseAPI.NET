@@ -8,7 +8,7 @@
     <ProjectGuid>{DE145257-909A-4B5D-9B0E-05DA3D74F1AC}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CoinbaseAPI.NET</RootNamespace>
+    <RootNamespace>Bitlet.Coinbase</RootNamespace>
     <AssemblyName>CoinbaseAPI.NET</AssemblyName>
     <DefaultLanguage>en-US</DefaultLanguage>
     <FileAlignment>512</FileAlignment>
@@ -36,6 +36,7 @@
   <ItemGroup>
     <Compile Include="CoinbaseAuthentication.cs" />
     <Compile Include="CoinbaseClient.cs" />
+    <Compile Include="CoinbaseClientPage.cs" />
     <Compile Include="ICoinbaseTokenProvider.cs" />
     <Compile Include="Models\AccountResponse.cs" />
     <Compile Include="Models\AccountsResponse.cs" />

@@ -86,13 +86,18 @@ namespace Bitlet.Coinbase
         }
     }
 
-    public sealed class CoinbaseClient : IDisposable
+    public sealed class CoinbaseClient
     {
-        private readonly HttpClient client;
+        private readonly ICoinbaseTokenProvider tokenProvider;
 
         public CoinbaseClient(ICoinbaseTokenProvider provider)
         {
-            client = new HttpClient(new CoinbaseMessageHandler(provider))
+            tokenProvider = provider;
+        }
+
+        internal HttpClient BuildClient()
+        {
+            return new HttpClient(new CoinbaseMessageHandler(tokenProvider))
             {
                 BaseAddress = new Uri("https://coinbase.com/api/v1/")
             };
@@ -100,12 +105,12 @@ namespace Bitlet.Coinbase
 
         #region Helpers
 
-        private Task<T> GetResponse<T>(string endpoint, params JsonConverter[] converters)
+        internal Task<T> GetResponseFromClientAsync<T>(HttpClient client, string endpoint, params JsonConverter[] converters)
         {
-            return GetResponse<T>(endpoint, null, converters);
+            return GetResponseFromClientAsync<T>(client, endpoint, null, converters);
         }
 
-        private async Task<T> GetResponse<T>(string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        internal async Task<T> GetResponseFromClientAsync<T>(HttpClient client, string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
         {
             var requestUri = endpoint;
 
@@ -121,31 +126,44 @@ namespace Bitlet.Coinbase
             return JsonConvert.DeserializeObject<T>(responseContent, converters);
         }
 
-        private Task<T> GetPaginatedResponse<T>(string endpoint, int page, HttpValueCollection parameters = null, params JsonConverter[] converters) 
-            where T : PaginatedResponse
+        internal Task<T> GetResponseAsync<T>(string endpoint, params JsonConverter[] converters)
         {
-            var newParameters = parameters != null ? new HttpValueCollection(parameters) : new HttpValueCollection();
-            newParameters.AddOrUpdate("page", page.ToString());
-
-            return GetResponse<T>(endpoint, newParameters, converters);
+            return GetResponseAsync<T>(endpoint, null, converters);
         }
 
-        private async Task<IList<T>> GetAllPaginatedResponses<T>(string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters) 
+        internal async Task<T> GetResponseAsync<T>(string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        {
+            using (var client = BuildClient())
+            {
+                return await GetResponseFromClientAsync<T>(client, endpoint, parameters, converters).ConfigureAwait(false);
+            }
+        }
+
+        private CoinbaseClientPage<T> BeginPaging<T>(string endpoint, int? limit = null, HttpValueCollection parameters = null, params JsonConverter[] converters)
             where T : PaginatedResponse
         {
-            var firstPage = await GetPaginatedResponse<T>(endpoint, 1, parameters, converters).ConfigureAwait(false);
+            return CoinbaseClientPage<T>.Begin(this, endpoint, limit, parameters, converters);
+        }
 
-            var restPages = await Task.WhenAll(from page in Enumerable.Range(2, firstPage.NumPages - 1)
-                                               select GetPaginatedResponse<T>(endpoint, page, parameters, converters)).ConfigureAwait(false);
+        private Task<CoinbaseClientPage<T>> GetPageAsync<T>(string endpoint, int page = 1, int? limit = null, HttpValueCollection parameters = null, params JsonConverter[] converters) 
+            where T : PaginatedResponse
+        {
+            var beginningPage = BeginPaging<T>(endpoint, limit, parameters, converters);
+            return beginningPage.GetPageAsync(page);
+        }
 
-            return firstPage.Yield().Concat(restPages).ToList();
+        private Task<IReadOnlyList<T>> GetAllPaginatedResponses<T>(string endpoint, int? limit = null, HttpValueCollection parameters = null, params JsonConverter[] converters) 
+            where T : PaginatedResponse
+        {
+            var beginPage = CoinbaseClientPage<T>.Begin(this, endpoint, limit, parameters, converters);
+            return beginPage.GetRemainingResponsesAsync();
         }
 
         #endregion
 
-        public async Task<UserResponse> GetUserAsync()
+        public async Task<UserResponseEntity> GetUserAsync()
         {
-            var usersResponse = await GetResponse<UsersResponse>("users").ConfigureAwait(false);
+            var usersResponse = await GetResponseAsync<UsersResponse>("users").ConfigureAwait(false);
 
             Contract.Assert(usersResponse.Users.Count == 1, "There should be exactly one user in users API request to coinbase.");
 
@@ -154,14 +172,14 @@ namespace Bitlet.Coinbase
 
         public Task<FixedPrecisionUnit<Bitcoin.BTC>> GetBalanceAsync()
         {
-            return GetResponse<FixedPrecisionUnit<Bitcoin.BTC>>("account/balance", new BTCConverter());
+            return GetResponseAsync<FixedPrecisionUnit<Bitcoin.BTC>>("account/balance", new BTCConverter());
         }
 
         #region Accounts
 
-        public Task<AccountsResponse> GetAccountsPageAsync(int page)
+        public Task<CoinbaseClientPage<AccountsResponse>> GetAccountsPageAsync(int page)
         {
-            return GetPaginatedResponse<AccountsResponse>("accounts", page);
+            return GetPageAsync<AccountsResponse>("accounts", page);
         }
 
         public async Task<IList<AccountResponse>> GetAccountsAsync()
@@ -172,14 +190,25 @@ namespace Bitlet.Coinbase
 
         public Task<FixedPrecisionUnit<Bitcoin.BTC>> GetAccountBalanceAsync(string id)
         {
-            return GetResponse<FixedPrecisionUnit<Bitcoin.BTC>>(String.Format("accounts/{0}/balance", id), new BTCConverter());
+            return GetResponseAsync<FixedPrecisionUnit<Bitcoin.BTC>>(String.Format("accounts/{0}/balance", id), new BTCConverter());
         }
 
         #endregion
 
         #region Transactions
 
-        public async Task<ITransactionsResponse> GetTransactionsAsync(string accountId = null)
+        public Task<CoinbaseClientPage<TransactionsResponse>> GetTransactionsPageAsync(string accountId = null, int page = 1)
+        {
+            var parameters = new HttpValueCollection();;
+            if (accountId != null)
+            {
+                parameters.Add("account_id", accountId);
+            }
+
+            return GetPageAsync<TransactionsResponse>("transactions", 1, null, parameters);
+        }
+
+        public async Task<ITransactionsResponse> GetAllTransactionsAsync(string accountId = null)
         {
             // https://coinbase.com/api/doc/1.0/transactions/index.html
 
@@ -189,7 +218,7 @@ namespace Bitlet.Coinbase
                 collection.Add("account_id", accountId);
             }
 
-            var responses = await GetAllPaginatedResponses<TransactionsResponse>("transactions", collection).ConfigureAwait(false);
+            var responses = await GetAllPaginatedResponses<TransactionsResponse>("transactions", null, collection).ConfigureAwait(false);
 
             var first = responses[0];
 
@@ -202,7 +231,7 @@ namespace Bitlet.Coinbase
             };
         }
 
-        public async Task<TransactionResponseItem> GetTransactionAsync(string transactionId, string accountId = null)
+        public Task<TransactionResponse> GetTransactionAsync(string transactionId, string accountId = null)
         {
             // https://coinbase.com/api/doc/1.0/transactions/show.html
 
@@ -212,21 +241,9 @@ namespace Bitlet.Coinbase
                 parameters.Add("account_id", accountId);
             }
 
-            var response = await GetResponse<TransactionResponse>(String.Format("transactions/{0}", transactionId), parameters).ConfigureAwait(false);
-
-            return response.Transaction;
+            return GetResponseAsync<TransactionResponse>(String.Format("transactions/{0}", transactionId), parameters);
         }
 
         #endregion
-
-        public void Dispose()
-        {
-            client.Dispose();
-        }
-
-        ~CoinbaseClient()
-        {
-            Dispose();
-        }
     }
 }
