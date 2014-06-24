@@ -21,7 +21,7 @@ namespace Bitlet.Coinbase.Models
         public FixedPrecisionUnit<Bitcoin.BTC> Balance { get; set; }
 
         [JsonProperty("native_balance")]
-        public NativeBalanceResponse NativeBalance { get; set; }
+        public NativeCurrencyResponse NativeBalance { get; set; }
 
         [JsonProperty("created_at"), JsonConverter(typeof(IsoDateTimeConverter))]
         public DateTime CreatedAt { get; set; }

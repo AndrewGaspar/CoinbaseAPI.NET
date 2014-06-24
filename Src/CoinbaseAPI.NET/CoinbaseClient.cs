@@ -14,6 +14,41 @@ namespace Bitlet.Coinbase
     using Primitives;
     using Utilities;
 
+    internal static class HttpValueCollectionExtensionsForCoinbase
+    {
+        public static void SetAccountId(this HttpValueCollection coll, string accountId)
+        {
+            if (accountId != null)
+            {
+                coll.AddOrUpdate("account_id", accountId);
+            }
+        }
+
+        public static void SetQuery(this HttpValueCollection coll, string query)
+        {
+            if (query != null)
+            {
+                coll.AddOrUpdate("query", query);
+            }
+        }
+
+        public static void SetPage(this HttpValueCollection coll, int? page)
+        {
+            if (page.HasValue)
+            {
+                coll.AddOrUpdate("page", page.Value.ToString());
+            }
+        }
+
+        private static void SetLimit(this HttpValueCollection coll, int? limit)
+        {
+            if (limit.HasValue)
+            {
+                coll.AddOrUpdate("limit", limit.Value.ToString());
+            }
+        }
+    }
+
     public class CoinbaseMessageHandler : DelegatingHandler
     {
         private readonly ICoinbaseTokenProvider tokenProvider;
@@ -161,13 +196,15 @@ namespace Bitlet.Coinbase
 
         #endregion
 
-        public async Task<UserResponseEntity> GetUserAsync()
+        #region User
+
+        public async Task<UserResponse> GetUserAsync()
         {
             var usersResponse = await GetResponseAsync<UsersResponse>("users").ConfigureAwait(false);
 
             Contract.Assert(usersResponse.Users.Count == 1, "There should be exactly one user in users API request to coinbase.");
 
-            return usersResponse.Users[0].User;
+            return usersResponse.Users[0];
         }
 
         public Task<FixedPrecisionUnit<Bitcoin.BTC>> GetBalanceAsync()
@@ -175,16 +212,24 @@ namespace Bitlet.Coinbase
             return GetResponseAsync<FixedPrecisionUnit<Bitcoin.BTC>>("account/balance", new BTCConverter());
         }
 
-        #region Accounts
+        #endregion
 
-        public Task<CoinbaseClientPage<AccountsResponse>> GetAccountsPageAsync(int page)
+        #region Accounts
+        private HttpValueCollection GetAccountParameters(string accountId)
+        {
+            var parameters = new HttpValueCollection();
+            parameters.SetAccountId(accountId);
+            return parameters;
+        }
+
+        public Task<CoinbaseClientPage<AccountsResponse>> GetAccountsPageAsync(int page = 1)
         {
             return GetPageAsync<AccountsResponse>("accounts", page);
         }
 
-        public async Task<IList<AccountResponse>> GetAccountsAsync()
+        public async Task<IReadOnlyList<AccountResponse>> GetAllAccountsAsync(int? limit = null)
         {
-            var responses = await GetAllPaginatedResponses<AccountsResponse>("accounts").ConfigureAwait(false);
+            var responses = await GetAllPaginatedResponses<AccountsResponse>("accounts", limit).ConfigureAwait(false);
             return responses.SelectMany(response => response.Accounts).ToList();
         }
 
@@ -197,30 +242,18 @@ namespace Bitlet.Coinbase
 
         #region Transactions
 
-        public Task<CoinbaseClientPage<TransactionsResponse>> GetTransactionsPageAsync(string accountId = null, int page = 1)
+        public Task<CoinbaseClientPage<TransactionsResponse>> GetTransactionsPageAsync(string accountId = null, int page = 1, int? limit = null)
         {
-            var parameters = new HttpValueCollection();;
-            if (accountId != null)
-            {
-                parameters.Add("account_id", accountId);
-            }
-
-            return GetPageAsync<TransactionsResponse>("transactions", 1, null, parameters);
+            return GetPageAsync<TransactionsResponse>("transactions", page, limit, GetAccountParameters(accountId));
         }
 
-        public async Task<ITransactionsResponse> GetAllTransactionsAsync(string accountId = null)
+        public async Task<ITransactionsResponse> GetAllTransactionsAsync(string accountId = null, int? limit = null)
         {
             // https://coinbase.com/api/doc/1.0/transactions/index.html
 
-            var collection = new HttpValueCollection();
-            if (accountId != null)
-            {
-                collection.Add("account_id", accountId);
-            }
+            var responses = await GetAllPaginatedResponses<TransactionsResponse>("transactions", limit, GetAccountParameters(accountId)).ConfigureAwait(false);
 
-            var responses = await GetAllPaginatedResponses<TransactionsResponse>("transactions", null, collection).ConfigureAwait(false);
-
-            var first = responses[0];
+            var first = responses.First();
 
             return new TransactionsResponse()
             {
@@ -235,15 +268,79 @@ namespace Bitlet.Coinbase
         {
             // https://coinbase.com/api/doc/1.0/transactions/show.html
 
-            var parameters = new HttpValueCollection();
-            if (accountId != null)
-            {
-                parameters.Add("account_id", accountId);
-            }
-
-            return GetResponseAsync<TransactionResponse>(String.Format("transactions/{0}", transactionId), parameters);
+            return GetResponseAsync<TransactionResponse>(String.Format("transactions/{0}", transactionId), GetAccountParameters(accountId));
         }
 
+        #endregion
+
+        #region Transfers
+
+        public Task<CoinbaseClientPage<TransfersResponse>> GetTransfersPageAsync(string accountId = null, int page = 1, int? limit = null)
+        {
+            return GetPageAsync<TransfersResponse>("transfers", page, limit, GetAccountParameters(accountId));
+        }
+
+        public async Task<IReadOnlyList<TransferResponse>> GetAllTransfersAsync(string accountId = null, int? limit = null)
+        {
+            // https://coinbase.com/api/doc/1.0/transactions/index.html
+
+            var responses = await GetAllPaginatedResponses<TransfersResponse>("transfers", limit, GetAccountParameters(accountId)).ConfigureAwait(false);
+
+            return responses.SelectMany(res => res.Transfers).ToList();
+        }
+
+        #endregion
+
+        #region Addresses
+
+        private HttpValueCollection GetAddressParameters(string accountId, string query)
+        {
+            var parameters = new HttpValueCollection();
+            parameters.SetAccountId(accountId);
+            parameters.SetQuery(query);
+            return parameters;
+        }
+
+        public Task<CoinbaseClientPage<AddressesResponse>> GetAddressesPageAsync(string accountId = null, string query = null, int page = 1, int? limit = null)
+        {
+            return GetPageAsync<AddressesResponse>("addresses", page, limit, GetAddressParameters(accountId, query));
+        }
+
+        public async Task<IReadOnlyList<AddressResponse>> GetAllAddressesAsync(string accountId = null, string query = null, int? limit = null)
+        {
+            var responses = await GetAllPaginatedResponses<AddressesResponse>("addresses", limit, GetAddressParameters(accountId, query)).ConfigureAwait(false);
+
+            return responses.SelectMany(res => res.Addresses).ToList();
+        }
+
+        #endregion
+
+        #region Contacts
+        private HttpValueCollection GetContactParameters(string query)
+        {
+            var parameters = new HttpValueCollection();
+            parameters.SetQuery(query);
+            return parameters;
+        }
+
+        public Task<CoinbaseClientPage<ContactsResponse>> GetContactsPageAsync(string query = null, int page = 1, int? limit = null)
+        {
+            return GetPageAsync<ContactsResponse>("contacts", page, limit, GetContactParameters(query));
+        }
+
+        public async Task<IReadOnlyList<ContactResponse>> GetAllContactsAsync(string query = null, int? limit = null)
+        {
+            var responses = await GetAllPaginatedResponses<ContactsResponse>("contacts", limit, GetContactParameters(query)).ConfigureAwait(false);
+
+            return responses.SelectMany(res => res.Contacts).ToList();
+        }
+        #endregion
+
+        #region Payment Methods
+        public Task<PaymentMethodsResponse> GetPaymentMethodsAsync()
+        {
+            return GetResponseAsync<PaymentMethodsResponse>("payment_methods");
+        }
         #endregion
     }
 }

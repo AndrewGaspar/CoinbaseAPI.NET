@@ -106,7 +106,7 @@ namespace Bitlet.Coinbase
                     return null;
                 }
 
-                return Response.NumPages;
+                return Response.TotalCount;
             }
         }
         public bool IsEndPage { get; private set; }
@@ -125,6 +125,11 @@ namespace Bitlet.Coinbase
         public async Task<CoinbaseClientPage<TPaginated>> GetPageAsync(int page, HttpClient httpClient)
         {
             var response = await GetResponseAsync(page, httpClient).ConfigureAwait(false);
+
+            if (response.CurrentPage > response.NumPages)
+            {
+                return CoinbaseClientPage<TPaginated>.EndPage;
+            }
 
             return new CoinbaseClientPage<TPaginated>(this, response);
         }

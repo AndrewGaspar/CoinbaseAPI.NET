@@ -7,11 +7,11 @@ namespace Bitlet.Coinbase.Models
 
     public interface ITransactionsResponse
     {
-        ShortUserResponse CurrentUser { get; set; }
+        ShortUserEntity CurrentUser { get; set; }
 
         FixedPrecisionUnit<Bitcoin.BTC> Balance { get; set; }
 
-        NativeBalanceResponse NativeBalance { get; set; }
+        NativeCurrencyResponse NativeBalance { get; set; }
 
         IList<TransactionResponse> Transactions { get; set; }
     }
@@ -19,13 +19,13 @@ namespace Bitlet.Coinbase.Models
     public class TransactionsResponse : PaginatedResponse, ITransactionsResponse
     {
         [JsonProperty("current_user")]
-        public ShortUserResponse CurrentUser { get; set; }
+        public ShortUserEntity CurrentUser { get; set; }
 
         [JsonProperty("balance"), JsonConverter(typeof(BTCConverter))]
         public FixedPrecisionUnit<Bitcoin.BTC> Balance { get; set; }
 
         [JsonProperty("native_balance")]
-        public NativeBalanceResponse NativeBalance { get; set; }
+        public NativeCurrencyResponse NativeBalance { get; set; }
 
         [JsonProperty("transactions")]
         public IList<TransactionResponse> Transactions { get; set; }

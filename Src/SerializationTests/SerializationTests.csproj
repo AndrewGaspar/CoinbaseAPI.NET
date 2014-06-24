@@ -114,7 +114,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AccountsResponseDeseralizationTests.cs" />
+    <Compile Include="PaymentMethodsResponseDeserializationTests.cs" />
+    <Compile Include="ContactsResponseDeserializationTests.cs" />
+    <Compile Include="AddressesResponseDeserializationTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TransfersResponseDeserializationTests.cs" />
     <Compile Include="TransactionsResponseDeserializationTests.cs" />
     <Compile Include="UserResponseDeserializationTests.cs" />
   </ItemGroup>

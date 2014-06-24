@@ -7,10 +7,10 @@ namespace Bitlet.Coinbase.Models
     public class UserResponse
     {
         [JsonProperty("user")]
-        public UserResponseEntity User { get; set; }
+        public UserEntity User { get; set; }
     }
 
-    public class ShortUserResponse
+    public class ShortUserEntity
     {
         [JsonProperty("id")]
         public string Id { get; set; }
@@ -22,7 +22,7 @@ namespace Bitlet.Coinbase.Models
         public string Email { get; set; }
     }
 
-    public class UserResponseEntity : ShortUserResponse
+    public class UserEntity : ShortUserEntity
     {
         [JsonProperty("time_zone")]
         public string TimeZone { get; set; }

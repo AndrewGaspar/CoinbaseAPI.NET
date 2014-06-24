@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Bitlet.Coinbase.Models
 {
-    public class NativeBalanceResponse
+    public class NativeCurrencyResponse
     {
         [JsonProperty("amount")]
         public decimal Amount { get; set; }
