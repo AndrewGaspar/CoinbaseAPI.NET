@@ -6,7 +6,7 @@ using System.Text;
 
 // http://stackoverflow.com/questions/20268544/portable-class-library-pcl-version-of-httputility-parsequerystring
 
-namespace Bitlet.Utilities
+namespace Bitlet.Coinbase.Utilities
 {
     public sealed class HttpUtility
     {

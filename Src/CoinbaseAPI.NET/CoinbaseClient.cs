@@ -3,14 +3,16 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Bitlet.Coinbase
 {
     using Models;
-
     using Primitives;
     using Utilities;
 
@@ -121,31 +123,62 @@ namespace Bitlet.Coinbase
         }
     }
 
-    public sealed class CoinbaseClient
+    public class CoinbaseResourceNotFoundException : Exception
     {
-        private readonly ICoinbaseTokenProvider tokenProvider;
+        public string Endpoint { get; private set; }
+
+        public CoinbaseResourceNotFoundException(string endpoint)
+            : base("Could not find resource at this endpoint: " + endpoint)
+        {
+            Endpoint = endpoint;
+        }
+    }
+
+    public sealed class CoinbaseClient : DisposableObject
+    {
+        private ICoinbaseTokenProvider TokenProvider { get; set; }
+
+        private HttpClient client;
+        private HttpClient WebClient
+        {
+            get
+            {
+                if (Disposed)
+                {
+                    throw new ObjectDisposedException(this.GetType().FullName);
+                }
+
+                return client;
+            }
+            set
+            {
+                client = value;
+            }
+        }
 
         public CoinbaseClient(ICoinbaseTokenProvider provider)
         {
-            tokenProvider = provider;
+            TokenProvider = provider;
+
+            WebClient = BuildClient();
         }
 
-        internal HttpClient BuildClient()
+        private HttpClient BuildClient()
         {
-            return new HttpClient(new CoinbaseMessageHandler(tokenProvider))
+            var client = new HttpClient(new CoinbaseMessageHandler(TokenProvider))
             {
                 BaseAddress = new Uri("https://coinbase.com/api/v1/")
             };
+
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            return client;
         }
 
         #region Helpers
 
-        internal Task<T> GetResponseFromClientAsync<T>(HttpClient client, string endpoint, params JsonConverter[] converters)
-        {
-            return GetResponseFromClientAsync<T>(client, endpoint, null, converters);
-        }
-
-        internal async Task<T> GetResponseFromClientAsync<T>(HttpClient client, string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        private string ConstructEndpoint(string endpoint, HttpValueCollection parameters)
         {
             var requestUri = endpoint;
 
@@ -154,26 +187,119 @@ namespace Bitlet.Coinbase
                 requestUri += "?" + parameters.ToString();
             }
 
-            var response = await client.GetAsync(requestUri).ConfigureAwait(false);
+            return requestUri;
+        }
 
-            var responseContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        private async Task<T> DeserializeResponse<T>(string endpoint, HttpResponseMessage message, JsonConverter[] converters)
+        {
+            if (message.StatusCode == HttpStatusCode.NotFound)
+            {
+                throw new CoinbaseResourceNotFoundException(endpoint);
+            }
+
+            var responseContent = await message.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             return JsonConvert.DeserializeObject<T>(responseContent, converters);
         }
 
-        internal Task<T> GetResponseAsync<T>(string endpoint, params JsonConverter[] converters)
+        private static string SerializeRequest<T>(T request)
         {
-            return GetResponseAsync<T>(endpoint, null, converters);
-        }
-
-        internal async Task<T> GetResponseAsync<T>(string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
-        {
-            using (var client = BuildClient())
+            if (request == null)
             {
-                return await GetResponseFromClientAsync<T>(client, endpoint, parameters, converters).ConfigureAwait(false);
+                return "";
             }
+
+            RequirementsVerifier.EnsureSatisfactionOfRequirements(request);
+
+            return JsonConvert.SerializeObject(request);
         }
 
+        #region Get
+        internal Task<T> GetAsync<T>(string endpoint, params JsonConverter[] converters)
+        {
+            return GetAsync<T>(endpoint, null, converters);
+        }
+
+        internal async Task<T> GetAsync<T>(string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        {
+            var requestUri = ConstructEndpoint(endpoint, parameters);
+
+            var response = await WebClient.GetAsync(requestUri).ConfigureAwait(false);
+
+            return await DeserializeResponse<T>(endpoint, response, converters).ConfigureAwait(false);
+        }
+        #endregion
+
+        #region Post
+        internal Task<TResponse> PostAsync<TRequest, TResponse>(string endpoint, TRequest resource, params JsonConverter[] converters)
+        {
+            return PostAsync<TRequest, TResponse>(endpoint, resource, null, converters);
+        }
+
+        internal async Task<TResponse> PostAsync<TRequest, TResponse>(string endpoint, TRequest resource, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        {
+            var requestUri = ConstructEndpoint(endpoint, parameters);
+
+            var resourceText = SerializeRequest(resource);
+
+            var content = new StringContent(resourceText);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+            var response = await WebClient.PostAsync(requestUri, content).ConfigureAwait(false);
+
+            return await DeserializeResponse<TResponse>(endpoint, response, converters).ConfigureAwait(false);
+        }
+
+        internal Task<TResponse> PostAsync<TResponse>(string endpoint, params JsonConverter[] converters)
+        {
+            return PostAsync<object, TResponse>(endpoint, null, converters);
+        }
+
+        internal Task<TResponse> PostAsync<TResponse>(string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        {
+            return PostAsync<object, TResponse>(endpoint, null, parameters, converters);
+        }
+        #endregion
+
+        #region Put
+
+        internal Task<TResponse> PutAsync<TRequest, TResponse>(string endpoint, TRequest resource, params JsonConverter[] converters)
+        {
+            return PutAsync<TRequest, TResponse>(endpoint, resource, null, converters);
+        }
+
+        internal async Task<TResponse> PutAsync<TRequest, TResponse>(string endpoint, TRequest resource, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        {
+            var requestUri = ConstructEndpoint(endpoint, parameters);
+
+            var resourceText = SerializeRequest(resource);
+
+            var content = new StringContent(resourceText);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+            var response = await WebClient.PutAsync(requestUri, content).ConfigureAwait(false);
+
+            return await DeserializeResponse<TResponse>(endpoint, response, converters).ConfigureAwait(false);
+        }
+        #endregion
+
+        #region Delete
+        internal Task<TResponse> DeleteAsync<TResponse>(string endpoint, params JsonConverter[] converters)
+        {
+            return DeleteAsync<TResponse>(endpoint, null, converters);
+        }
+
+        internal async Task<TResponse> DeleteAsync<TResponse>(string endpoint, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        {
+            var requestUri = ConstructEndpoint(endpoint, parameters);
+
+            var response = await WebClient.DeleteAsync(requestUri).ConfigureAwait(false);
+
+            return await DeserializeResponse<TResponse>(endpoint, response, converters).ConfigureAwait(false);
+        }
+        #endregion
+
+        #region Pages
         private CoinbaseClientPage<T> BeginPaging<T>(string endpoint, int? limit = null, HttpValueCollection parameters = null, params JsonConverter[] converters)
             where T : PaginatedResponse
         {
@@ -193,6 +319,7 @@ namespace Bitlet.Coinbase
             var beginPage = CoinbaseClientPage<T>.Begin(this, endpoint, limit, parameters, converters);
             return beginPage.GetRemainingResponsesAsync();
         }
+        #endregion
 
         #endregion
 
@@ -200,7 +327,7 @@ namespace Bitlet.Coinbase
 
         public async Task<UserResponse> GetUserAsync()
         {
-            var usersResponse = await GetResponseAsync<UsersResponse>("users").ConfigureAwait(false);
+            var usersResponse = await GetAsync<UsersResponse>("users").ConfigureAwait(false);
 
             Contract.Assert(usersResponse.Users.Count == 1, "There should be exactly one user in users API request to coinbase.");
 
@@ -209,7 +336,24 @@ namespace Bitlet.Coinbase
 
         public Task<FixedPrecisionUnit<Bitcoin.BTC>> GetBalanceAsync()
         {
-            return GetResponseAsync<FixedPrecisionUnit<Bitcoin.BTC>>("account/balance", new BTCConverter());
+            return GetAsync<FixedPrecisionUnit<Bitcoin.BTC>>("account/balance", new BTCConverter());
+        }
+
+        public Task<AddUserResponse> AddUserAsync(AddUserRequest newUser)
+        {
+            return PostAsync<AddUserRequest, AddUserResponse>("users", newUser);
+        }
+
+        public Task<AddUserResponse> AddUserAsync(string email, string password)
+        {
+            return AddUserAsync(new AddUserRequest()
+            {
+                User = new AddUserDetails()
+                {
+                    Email = email,
+                    Password = password
+                }
+            });
         }
 
         #endregion
@@ -235,9 +379,55 @@ namespace Bitlet.Coinbase
 
         public Task<FixedPrecisionUnit<Bitcoin.BTC>> GetAccountBalanceAsync(string id)
         {
-            return GetResponseAsync<FixedPrecisionUnit<Bitcoin.BTC>>(String.Format("accounts/{0}/balance", id), new BTCConverter());
+            return GetAsync<FixedPrecisionUnit<Bitcoin.BTC>>(String.Format("accounts/{0}/balance", id), new BTCConverter());
         }
 
+        public Task<ModifyAccountResponse> CreateAccountAsync()
+        {
+            return PostAsync<ModifyAccountResponse>("accounts");
+        }
+
+        public Task<ModifyAccountResponse> CreateAccountAsync(AddAccountRequest request)
+        {
+            return PostAsync<AddAccountRequest, ModifyAccountResponse>("accounts", request);
+        }
+
+        public Task<ModifyAccountResponse> CreateAccountAsync(string name)
+        {
+            return CreateAccountAsync(new AddAccountRequest()
+            {
+                Account = new AddAccountDetails()
+                {
+                    Name = name
+                }
+            });
+        }
+
+        public Task<RequestResponse> MakeAccountPrimaryAsync(string id)
+        {
+            return PostAsync<RequestResponse>(String.Format("accounts/{0}/primary", id));
+        }
+
+        public Task<ModifyAccountResponse> ChangeAccountNameAsync(string id, UpdateAccountRequest request)
+        {
+            return PostAsync<UpdateAccountRequest, ModifyAccountResponse>(String.Format("accounts/{0}", id), request);
+        }
+
+        public Task<ModifyAccountResponse> ChangeAccountNameAsync(string id, string name)
+        {
+            return ChangeAccountNameAsync(id, new UpdateAccountRequest()
+            {
+                Account = new UpdateAccountDetails()
+                {
+                    Name = name
+                }
+            });
+        }
+
+        public Task<RequestResponse> DeleteAccountAsync(string id)
+        {
+            return DeleteAsync<RequestResponse>(String.Format("accounts/{0}", id));
+        }
         #endregion
 
         #region Transactions
@@ -268,7 +458,7 @@ namespace Bitlet.Coinbase
         {
             // https://coinbase.com/api/doc/1.0/transactions/show.html
 
-            return GetResponseAsync<TransactionResponse>(String.Format("transactions/{0}", transactionId), GetAccountParameters(accountId));
+            return GetAsync<TransactionResponse>(String.Format("transactions/{0}", transactionId), GetAccountParameters(accountId));
         }
 
         #endregion
@@ -315,6 +505,40 @@ namespace Bitlet.Coinbase
 
         #endregion
 
+        #region Oauth Applications
+        public Task<CoinbaseClientPage<ApplicationsResponse>> GetApplicationsPageAsync(int page = 1)
+        {
+            return GetPageAsync<ApplicationsResponse>("oauth/applications", page);
+        }
+
+        public async Task<IReadOnlyList<ApplicationResponse>> GetAllApplicationsAsync()
+        {
+            var responses = await GetAllPaginatedResponses<ApplicationsResponse>("oauth/applications").ConfigureAwait(false);
+
+            return responses.SelectMany(res => res.Applications).ToList();
+        }
+
+        /// <summary>
+        /// Returns a specific application by id.
+        /// 
+        /// There is a wrapper around the response that is not present in the GetApplications requests due to inconsistencies in the Coinbase API.
+        /// 
+        /// https://coinbase.com/api/doc/1.0/applications/index.html
+        /// https://coinbase.com/api/doc/1.0/applications/show.html
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public Task<ApplicationResponseWrapper> GetApplicationAsync(string id)
+        {
+            return GetAsync<ApplicationResponseWrapper>(String.Format("oauth/applications/{0}", id));
+        }
+
+        public Task<CreateApplicationResponse> CreateApplication(CreateApplicationRequest request)
+        {
+            return PostAsync<CreateApplicationRequest, CreateApplicationResponse>("oauth/applications", request);
+        }
+        #endregion
+
         #region Contacts
         private HttpValueCollection GetContactParameters(string query)
         {
@@ -339,8 +563,13 @@ namespace Bitlet.Coinbase
         #region Payment Methods
         public Task<PaymentMethodsResponse> GetPaymentMethodsAsync()
         {
-            return GetResponseAsync<PaymentMethodsResponse>("payment_methods");
+            return GetAsync<PaymentMethodsResponse>("payment_methods");
         }
         #endregion
+
+        protected override void DisposeManagedResources()
+        {
+            WebClient.Dispose();
+        }
     }
 }

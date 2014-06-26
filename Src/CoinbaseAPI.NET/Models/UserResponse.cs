@@ -10,18 +10,6 @@ namespace Bitlet.Coinbase.Models
         public UserEntity User { get; set; }
     }
 
-    public class ShortUserEntity
-    {
-        [JsonProperty("id")]
-        public string Id { get; set; }
-
-        [JsonProperty("name")]
-        public string Name { get; set; }
-
-        [JsonProperty("email")]
-        public string Email { get; set; }
-    }
-
     public class UserEntity : ShortUserEntity
     {
         [JsonProperty("time_zone")]

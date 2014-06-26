@@ -24,7 +24,7 @@ namespace Bitlet.Coinbase
         }
     }
 
-    public class CoinbaseClientPage<TPaginated> where TPaginated : PaginatedResponse
+    public class CoinbaseClientPage<TPaginated> : DisposableObject where TPaginated : PaginatedResponse
     {
         internal static CoinbaseClientPage<TPaginated> Begin(CoinbaseClient client, string endpoint, int? limit, 
             HttpValueCollection parameters, JsonConverter[] converters)
@@ -46,20 +46,36 @@ namespace Bitlet.Coinbase
         }
 
         private CoinbaseClient client;
+        private CoinbaseClient Client
+        {
+            get
+            {
+                if (Disposed)
+                {
+                    throw new ObjectDisposedException(this.GetType().FullName);
+                }
+
+                return client;
+            }
+            set
+            {
+                client = value;
+            }
+        }
         private HttpValueCollection parameters;
         private string endpoint;
         private int? limit;
         private JsonConverter[] converters;
 
         internal CoinbaseClientPage(CoinbaseClientPage<TPaginated> page, TPaginated newPage)
-            : this(page.client, page.endpoint, page.limit, page.parameters, newPage, page.converters)
+            : this(page.Client, page.endpoint, page.limit, page.parameters, newPage, page.converters)
         {
 
         }
 
         internal CoinbaseClientPage(CoinbaseClient client, string endpoint, int? limit, HttpValueCollection parameters, TPaginated pageResponse, JsonConverter[] converters)
         {
-            this.client = client;
+            this.Client = client;
             this.parameters = parameters;
             this.endpoint = endpoint;
             this.limit = limit;
@@ -114,17 +130,10 @@ namespace Bitlet.Coinbase
 
         public TPaginated Response { get; private set; }
 
+
         public async Task<CoinbaseClientPage<TPaginated>> GetPageAsync(int page)
         {
-            using (var httpClient = client.BuildClient())
-            {
-                return await GetPageAsync(page, httpClient).ConfigureAwait(false);
-            }
-        }
-
-        public async Task<CoinbaseClientPage<TPaginated>> GetPageAsync(int page, HttpClient httpClient)
-        {
-            var response = await GetResponseAsync(page, httpClient).ConfigureAwait(false);
+            var response = await GetResponseAsync(page).ConfigureAwait(false);
 
             if (response.CurrentPage > response.NumPages)
             {
@@ -135,14 +144,6 @@ namespace Bitlet.Coinbase
         }
 
         private async Task<TPaginated> GetResponseAsync(int page)
-        {
-            using (var httpClient = client.BuildClient())
-            {
-                return await GetResponseAsync(page, httpClient);
-            }
-        }
-
-        private async Task<TPaginated> GetResponseAsync(int page, HttpClient httpClient)
         {
             if (NumPages.HasValue && page > NumPages)
             {
@@ -158,7 +159,7 @@ namespace Bitlet.Coinbase
                     newParameters.AddOrUpdate("limit", limit.Value.ToString());
                 }
 
-                return await client.GetResponseFromClientAsync<TPaginated>(httpClient, endpoint, newParameters, converters);
+                return await Client.GetAsync<TPaginated>(endpoint, newParameters, converters);
             }
         }
 
@@ -187,43 +188,40 @@ namespace Bitlet.Coinbase
                 return new List<TPaginated>();
             }
 
-            using (var httpClient = client.BuildClient())
+            CoinbaseClientPage<TPaginated> firstPage = null;
+            int startPage;
+            int endPage;
+            // if this page is the "beginning page", then all pages are the remaining pages
+            // We must request the first page because otherwise we don't know how many pages there are
+            // Then recursively call GetRemainingPagesAsync to get all of the pages.
+            if (IsBeginPage)
             {
-                CoinbaseClientPage<TPaginated> firstPage = null;
-                int startPage;
-                int endPage;
-                // if this page is the "beginning page", then all pages are the remaining pages
-                // We must request the first page because otherwise we don't know how many pages there are
-                // Then recursively call GetRemainingPagesAsync to get all of the pages.
-                if (IsBeginPage)
+                firstPage = await GetPageAsync(1).ConfigureAwait(false);
+                if (firstPage.IsEndPage)
                 {
-                    firstPage = await GetPageAsync(1, httpClient).ConfigureAwait(false);
-                    if (firstPage.IsEndPage)
-                    {
-                        return new List<TPaginated>();
-                    }
+                    return new List<TPaginated>();
+                }
 
-                    startPage = firstPage.CurrentPage.Value + 1;
-                    endPage = firstPage.NumPages.Value;
+                startPage = firstPage.CurrentPage.Value + 1;
+                endPage = firstPage.NumPages.Value;
                     
-                }
-                else
-                {
-                    startPage = CurrentPage.Value + 1;
-                    endPage = NumPages.Value;
-                }
+            }
+            else
+            {
+                startPage = CurrentPage.Value + 1;
+                endPage = NumPages.Value;
+            }
 
-                var remainingPages = await Task.WhenAll(from pageNumber in Enumerable.Range(startPage, endPage - 1)
-                                          select GetResponseAsync(pageNumber, httpClient)).ConfigureAwait(false);
+            var remainingPages = await Task.WhenAll(from pageNumber in Enumerable.Range(startPage, endPage - 1)
+                                        select GetResponseAsync(pageNumber)).ConfigureAwait(false);
 
-                if (firstPage != null)
-                {
-                    return firstPage.Response.Yield().Concat(remainingPages).ToList();
-                }
-                else
-                {
-                    return remainingPages.ToList();
-                }
+            if (firstPage != null)
+            {
+                return firstPage.Response.Yield().Concat(remainingPages).ToList();
+            }
+            else
+            {
+                return remainingPages.ToList();
             }
         }
 
@@ -233,6 +231,11 @@ namespace Bitlet.Coinbase
                         select new CoinbaseClientPage<TPaginated>(this, response);
 
             return pages.ToList();
+        }
+
+        protected override void DisposeManagedResources()
+        {
+            ((IDisposable)Client).Dispose();
         }
     }
 }
