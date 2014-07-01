@@ -65,9 +65,9 @@ namespace Bitlet.Coinbase.Tests
             Assert.AreEqual(accounts.TotalCount, 2);
             Assert.AreEqual(accountsList[0].Balance.Type, typeof(Bitcoin.BTC));
             Assert.AreEqual(accountsList[0].Balance.Value, 50m);
-            Assert.AreEqual(accountsList[0].CreatedAt.Year, 2014);
-            Assert.AreEqual(accountsList[0].CreatedAt.Month, 5);
-            Assert.AreEqual(accountsList[0].CreatedAt.Day, 7);
+            Assert.AreEqual(accountsList[0].CreatedAt.Value.Year, 2014);
+            Assert.AreEqual(accountsList[0].CreatedAt.Value.Month, 5);
+            Assert.AreEqual(accountsList[0].CreatedAt.Value.Day, 7);
             Assert.IsFalse(accountsList[1].Primary);
         }
     }

@@ -7,15 +7,15 @@ using System.Threading.Tasks;
 
 namespace Bitlet.Coinbase.Models
 {
-    public class UpdateAccountDetails
-    {
-        [JsonProperty("name"), Required]
-        public string Name { get; set; }
-    }
-
     public class UpdateAccountRequest
     {
+        public class Details
+        {
+            [JsonProperty("name"), Required]
+            public string Name { get; set; }
+        }
+
         [JsonProperty("account"), Required]
-        public UpdateAccountDetails Account { get; set; }
+        public Details Account { get; set; }
     }
 }

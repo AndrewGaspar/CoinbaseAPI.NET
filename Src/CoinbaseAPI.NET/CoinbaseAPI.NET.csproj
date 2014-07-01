@@ -34,14 +34,15 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="AsyncCoinbaseResultsList.cs" />
     <Compile Include="CoinbaseAuthentication.cs" />
     <Compile Include="CoinbaseClient.cs" />
-    <Compile Include="CoinbaseClientPage.cs" />
+    <Compile Include="AsyncCoinbasePageList.cs" />
     <Compile Include="ICoinbaseTokenProvider.cs" />
     <Compile Include="Models\AccountResponse.cs" />
     <Compile Include="Models\AccountsResponse.cs" />
     <Compile Include="Models\AddAccountRequest.cs" />
-    <Compile Include="Models\AddAccountResponse.cs" />
+    <Compile Include="Models\ModifyAccountResponse.cs" />
     <Compile Include="Models\AddressesResponse.cs" />
     <Compile Include="Models\AddressResponse.cs" />
     <Compile Include="Models\AddUserRequest.cs" />
@@ -70,8 +71,12 @@
     <Compile Include="RequiredAttribute.cs" />
     <Compile Include="RequirementsVerifier.cs" />
     <Compile Include="TemporaryTokenProvider.cs" />
+    <Compile Include="Utilities\AsyncListEnumerator.cs" />
     <Compile Include="Utilities\DisposableObject.cs" />
     <Compile Include="Utilities\HttpUtility.cs" />
+    <Compile Include="Utilities\IAsyncEnumerable.cs" />
+    <Compile Include="Utilities\IAsyncEnumerator.cs" />
+    <Compile Include="Utilities\IAsyncReadOnlyList.cs" />
     <Compile Include="Utilities\IEnumerableExtensions.cs" />
     <Compile Include="Utilities\UriExtensions.cs" />
   </ItemGroup>

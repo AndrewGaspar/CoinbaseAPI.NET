@@ -14,6 +14,7 @@ namespace Bitlet.Coinbase
 {
     using Models;
     using Primitives;
+    using System.IO;
     using Utilities;
 
     internal static class HttpValueCollectionExtensionsForCoinbase
@@ -300,24 +301,10 @@ namespace Bitlet.Coinbase
         #endregion
 
         #region Pages
-        private CoinbaseClientPage<T> BeginPaging<T>(string endpoint, int? limit = null, HttpValueCollection parameters = null, params JsonConverter[] converters)
+        private AsyncCoinbasePageList<T> GetAsyncPagesList<T>(string endpoint, int? resultsPerPage = null, HttpValueCollection parameters = null, params JsonConverter[] converters)
             where T : PaginatedResponse
         {
-            return CoinbaseClientPage<T>.Begin(this, endpoint, limit, parameters, converters);
-        }
-
-        private Task<CoinbaseClientPage<T>> GetPageAsync<T>(string endpoint, int page = 1, int? limit = null, HttpValueCollection parameters = null, params JsonConverter[] converters) 
-            where T : PaginatedResponse
-        {
-            var beginningPage = BeginPaging<T>(endpoint, limit, parameters, converters);
-            return beginningPage.GetPageAsync(page);
-        }
-
-        private Task<IReadOnlyList<T>> GetAllPaginatedResponses<T>(string endpoint, int? limit = null, HttpValueCollection parameters = null, params JsonConverter[] converters) 
-            where T : PaginatedResponse
-        {
-            var beginPage = CoinbaseClientPage<T>.Begin(this, endpoint, limit, parameters, converters);
-            return beginPage.GetRemainingResponsesAsync();
+            return new AsyncCoinbasePageList<T>(this, endpoint, resultsPerPage, parameters, converters);
         }
         #endregion
 
@@ -348,7 +335,7 @@ namespace Bitlet.Coinbase
         {
             return AddUserAsync(new AddUserRequest()
             {
-                User = new AddUserDetails()
+                User = new AddUserRequest.Details()
                 {
                     Email = email,
                     Password = password
@@ -366,15 +353,15 @@ namespace Bitlet.Coinbase
             return parameters;
         }
 
-        public Task<CoinbaseClientPage<AccountsResponse>> GetAccountsPageAsync(int page = 1)
+        public AsyncCoinbasePageList<AccountsResponse> GetAccountPages(int? resultsPerPage = null)
         {
-            return GetPageAsync<AccountsResponse>("accounts", page);
+            return GetAsyncPagesList<AccountsResponse>("accounts", resultsPerPage);
         }
 
-        public async Task<IReadOnlyList<AccountResponse>> GetAllAccountsAsync(int? limit = null)
+        public IAsyncReadOnlyList<AccountResponse> GetAccounts(int? resultsPerPage = null)
         {
-            var responses = await GetAllPaginatedResponses<AccountsResponse>("accounts", limit).ConfigureAwait(false);
-            return responses.SelectMany(response => response.Accounts).ToList();
+            return new AsyncCoinbaseResultsList<AccountResponse, AccountsResponse>(
+                GetAccountPages(resultsPerPage), page => page.Accounts);
         }
 
         public Task<FixedPrecisionUnit<Bitcoin.BTC>> GetAccountBalanceAsync(string id)
@@ -396,7 +383,7 @@ namespace Bitlet.Coinbase
         {
             return CreateAccountAsync(new AddAccountRequest()
             {
-                Account = new AddAccountDetails()
+                Account = new AddAccountRequest.Details()
                 {
                     Name = name
                 }
@@ -410,14 +397,14 @@ namespace Bitlet.Coinbase
 
         public Task<ModifyAccountResponse> ChangeAccountNameAsync(string id, UpdateAccountRequest request)
         {
-            return PostAsync<UpdateAccountRequest, ModifyAccountResponse>(String.Format("accounts/{0}", id), request);
+            return PutAsync<UpdateAccountRequest, ModifyAccountResponse>(String.Format("accounts/{0}", id), request);
         }
 
         public Task<ModifyAccountResponse> ChangeAccountNameAsync(string id, string name)
         {
             return ChangeAccountNameAsync(id, new UpdateAccountRequest()
             {
-                Account = new UpdateAccountDetails()
+                Account = new UpdateAccountRequest.Details()
                 {
                     Name = name
                 }
@@ -431,27 +418,19 @@ namespace Bitlet.Coinbase
         #endregion
 
         #region Transactions
-
-        public Task<CoinbaseClientPage<TransactionsResponse>> GetTransactionsPageAsync(string accountId = null, int page = 1, int? limit = null)
+        public AsyncCoinbasePageList<TransactionsResponse> GetTransactionPages(
+            string accountId = null, int? resultsPerPage = null)
         {
-            return GetPageAsync<TransactionsResponse>("transactions", page, limit, GetAccountParameters(accountId));
+            return GetAsyncPagesList<TransactionsResponse>("transactions", resultsPerPage, GetAccountParameters(accountId));
         }
 
-        public async Task<ITransactionsResponse> GetAllTransactionsAsync(string accountId = null, int? limit = null)
+        public IAsyncReadOnlyList<TransactionResponse> GetTransactions(
+            string accountId = null, int? resultsPerPage = null)
         {
             // https://coinbase.com/api/doc/1.0/transactions/index.html
 
-            var responses = await GetAllPaginatedResponses<TransactionsResponse>("transactions", limit, GetAccountParameters(accountId)).ConfigureAwait(false);
-
-            var first = responses.First();
-
-            return new TransactionsResponse()
-            {
-                Balance = first.Balance,
-                CurrentUser = first.CurrentUser,
-                NativeBalance = first.NativeBalance,
-                Transactions = responses.SelectMany(response => response.Transactions).ToList()
-            };
+            return new AsyncCoinbaseResultsList<TransactionResponse, TransactionsResponse>(GetTransactionPages(accountId, resultsPerPage),
+                page => page.Transactions);
         }
 
         public Task<TransactionResponse> GetTransactionAsync(string transactionId, string accountId = null)
@@ -460,29 +439,24 @@ namespace Bitlet.Coinbase
 
             return GetAsync<TransactionResponse>(String.Format("transactions/{0}", transactionId), GetAccountParameters(accountId));
         }
-
         #endregion
 
         #region Transfers
-
-        public Task<CoinbaseClientPage<TransfersResponse>> GetTransfersPageAsync(string accountId = null, int page = 1, int? limit = null)
+        public AsyncCoinbasePageList<TransfersResponse> GetTransferPages(string accountId = null, int? resultsPerPage = null)
         {
-            return GetPageAsync<TransfersResponse>("transfers", page, limit, GetAccountParameters(accountId));
+            return GetAsyncPagesList<TransfersResponse>("transfers", resultsPerPage, GetAccountParameters(accountId));
         }
 
-        public async Task<IReadOnlyList<TransferResponse>> GetAllTransfersAsync(string accountId = null, int? limit = null)
+        public IAsyncReadOnlyList<TransferResponse> GetTransfers(string accountId = null, int? limit = null)
         {
-            // https://coinbase.com/api/doc/1.0/transactions/index.html
+            // https://coinbase.com/api/doc/1.0/transfers/index.html
 
-            var responses = await GetAllPaginatedResponses<TransfersResponse>("transfers", limit, GetAccountParameters(accountId)).ConfigureAwait(false);
-
-            return responses.SelectMany(res => res.Transfers).ToList();
+            return new AsyncCoinbaseResultsList<TransferResponse, TransfersResponse>(GetTransferPages(accountId, limit), 
+                page => page.Transfers);
         }
-
         #endregion
 
         #region Addresses
-
         private HttpValueCollection GetAddressParameters(string accountId, string query)
         {
             var parameters = new HttpValueCollection();
@@ -491,31 +465,27 @@ namespace Bitlet.Coinbase
             return parameters;
         }
 
-        public Task<CoinbaseClientPage<AddressesResponse>> GetAddressesPageAsync(string accountId = null, string query = null, int page = 1, int? limit = null)
+        public AsyncCoinbasePageList<AddressesResponse> GetAddressPages(string accountId = null, string query = null, int? limit = null)
         {
-            return GetPageAsync<AddressesResponse>("addresses", page, limit, GetAddressParameters(accountId, query));
+            return GetAsyncPagesList<AddressesResponse>("addresses", limit, GetAddressParameters(accountId, query));
         }
 
-        public async Task<IReadOnlyList<AddressResponse>> GetAllAddressesAsync(string accountId = null, string query = null, int? limit = null)
+        public IAsyncReadOnlyList<AddressResponse> GetAddresses(string accountId = null, string query = null, int? resultsPerPage = null)
         {
-            var responses = await GetAllPaginatedResponses<AddressesResponse>("addresses", limit, GetAddressParameters(accountId, query)).ConfigureAwait(false);
-
-            return responses.SelectMany(res => res.Addresses).ToList();
+            return new AsyncCoinbaseResultsList<AddressResponse, AddressesResponse>(GetAddressPages(accountId, query, resultsPerPage),
+                page => page.Addresses);
         }
-
         #endregion
 
         #region Oauth Applications
-        public Task<CoinbaseClientPage<ApplicationsResponse>> GetApplicationsPageAsync(int page = 1)
+        public AsyncCoinbasePageList<ApplicationsResponse> GetApplicationPages()
         {
-            return GetPageAsync<ApplicationsResponse>("oauth/applications", page);
+            return GetAsyncPagesList<ApplicationsResponse>("oauth/applications");
         }
 
-        public async Task<IReadOnlyList<ApplicationResponse>> GetAllApplicationsAsync()
+        public IAsyncReadOnlyList<ApplicationResponse> GetApplications()
         {
-            var responses = await GetAllPaginatedResponses<ApplicationsResponse>("oauth/applications").ConfigureAwait(false);
-
-            return responses.SelectMany(res => res.Applications).ToList();
+            return new AsyncCoinbaseResultsList<ApplicationResponse, ApplicationsResponse>(GetApplicationPages(), page => page.Applications);
         }
 
         /// <summary>
@@ -547,16 +517,14 @@ namespace Bitlet.Coinbase
             return parameters;
         }
 
-        public Task<CoinbaseClientPage<ContactsResponse>> GetContactsPageAsync(string query = null, int page = 1, int? limit = null)
+        public AsyncCoinbasePageList<ContactsResponse> GetContactPages(string query = null, int? resultsPerPage = null)
         {
-            return GetPageAsync<ContactsResponse>("contacts", page, limit, GetContactParameters(query));
+            return GetAsyncPagesList<ContactsResponse>("contacts", resultsPerPage, GetContactParameters(query));
         }
 
-        public async Task<IReadOnlyList<ContactResponse>> GetAllContactsAsync(string query = null, int? limit = null)
+        public IAsyncReadOnlyList<ContactResponse> GetContacts(string query = null, int? resultsPerPage = null)
         {
-            var responses = await GetAllPaginatedResponses<ContactsResponse>("contacts", limit, GetContactParameters(query)).ConfigureAwait(false);
-
-            return responses.SelectMany(res => res.Contacts).ToList();
+            return new AsyncCoinbaseResultsList<ContactResponse, ContactsResponse>(GetContactPages(query, resultsPerPage), page => page.Contacts);
         }
         #endregion
 

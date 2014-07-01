@@ -24,7 +24,7 @@ namespace Bitlet.Coinbase.Models
         public NativeCurrencyResponse NativeBalance { get; set; }
 
         [JsonProperty("created_at"), JsonConverter(typeof(IsoDateTimeConverter))]
-        public DateTime CreatedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
 
         [JsonProperty("primary")]
         public bool Primary { get; set; }

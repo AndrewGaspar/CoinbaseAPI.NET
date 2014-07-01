@@ -52,41 +52,44 @@ namespace Bitlet.Coinbase
             var type = p.PropertyType;
             var typeInfo = type.GetTypeInfo();
 
-            return !(typeInfo.IsPrimitive || type == typeof(DateTime) || type == typeof(decimal));
+            return typeInfo.IsNested;
         }
 
         private static RequirementInfo GetRequirementInfo(Type type)
         {
-            RequirementInfo info;
-            if (!requirementsDictionary.TryGetValue(type, out info))
+            lock (requirementsDictionary)
             {
-                var properties = type.GetRuntimeProperties();
-
-                var noRequiredAttributeProperties = properties.Where(property => property.GetCustomAttribute<RequiredAttribute>() == null).ToList();
-
-                if (noRequiredAttributeProperties.Count > 0)
+                RequirementInfo info;
+                if (!requirementsDictionary.TryGetValue(type, out info))
                 {
-                    throw new RequiredUnmarkedException(type, noRequiredAttributeProperties);
+                    var properties = type.GetRuntimeProperties();
+
+                    var noRequiredAttributeProperties = properties.Where(property => property.GetCustomAttribute<RequiredAttribute>() == null).ToList();
+
+                    if (noRequiredAttributeProperties.Count > 0)
+                    {
+                        throw new RequiredUnmarkedException(type, noRequiredAttributeProperties);
+                    }
+
+                    var requiredProperties = (from property in properties
+                                              where property.GetCustomAttribute<RequiredAttribute>().IsRequired
+                                              select property).ToList();
+
+                    var childEntities = (from property in properties
+                                         where IsUserEntityProperty(property)
+                                         select property).ToList();
+
+                    info = new RequirementInfo()
+                    {
+                        RequiredProperties = requiredProperties,
+                        ChildEntityProperties = childEntities
+                    };
+
+                    requirementsDictionary[type] = info;
                 }
 
-                var requiredProperties = (from property in properties
-                                          where property.GetCustomAttribute<RequiredAttribute>().IsRequired
-                                          select property).ToList();
-
-                var childEntities = (from property in properties
-                                     where IsUserEntityProperty(property)
-                                     select property).ToList();
-
-                info = new RequirementInfo()
-                {
-                    RequiredProperties = requiredProperties,
-                    ChildEntityProperties = childEntities
-                };
-
-                requirementsDictionary[type] = info;
+                return info;
             }
-
-            return info;
         }
 
         public static void EnsureSatisfactionOfRequirements(object resource)
