@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Bitlet.Coinbase.Models
 {
-    public class ContactsResponse : PaginatedResponse
+    public class ContactsPage : RecordsPage
     {
         [JsonProperty("contacts")]
         public IList<ContactResponse> Contacts { get; set; }

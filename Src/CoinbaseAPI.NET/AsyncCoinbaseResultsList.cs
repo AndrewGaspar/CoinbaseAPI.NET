@@ -8,8 +8,8 @@ namespace Bitlet.Coinbase
     using Models;
     using Utilities;
 
-    public class AsyncCoinbaseResultsList<TResponse, TPage> : IAsyncReadOnlyList<TResponse>
-        where TPage : PaginatedResponse
+    public class AsyncCoinbaseRecordsList<TResponse, TPage> : IAsyncReadOnlyList<TResponse>
+        where TPage : RecordsPage
     {
         protected AsyncCoinbasePageList<TPage> PageList { get; private set; }
 
@@ -17,7 +17,7 @@ namespace Bitlet.Coinbase
 
         private GetResultsFromPage resultsGetter;
 
-        public AsyncCoinbaseResultsList(AsyncCoinbasePageList<TPage> pageList, GetResultsFromPage function)
+        public AsyncCoinbaseRecordsList(AsyncCoinbasePageList<TPage> pageList, GetResultsFromPage function)
         {
             PageList = pageList;
             resultsGetter = function;

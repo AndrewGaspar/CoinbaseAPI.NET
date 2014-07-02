@@ -1,9 +1,4 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Bitlet.Coinbase.Models
 {
@@ -13,7 +8,7 @@ namespace Bitlet.Coinbase.Models
         public string ReceiveAddress { get; set; }
     }
 
-    public class AddUserResponse : RequestResponse
+    public class CreateUserResponse : RequestResponse
     {
         [JsonProperty("user")]
         public AddUserEntity User { get; set; }

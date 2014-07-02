@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Bitlet.Coinbase.Models
 {
-    public class ModifyAccountResponse : RequestResponse
+    public class UpdateAccountResponse : RequestResponse
     {
         [JsonProperty("account")]
         public AccountResponse Account { get; set; }

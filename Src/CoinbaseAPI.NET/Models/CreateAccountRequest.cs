@@ -2,7 +2,7 @@
 
 namespace Bitlet.Coinbase.Models
 {
-    public class AddAccountRequest
+    public class CreateAccountRequest
     {
         public class Details
         {

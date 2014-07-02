@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Bitlet.Coinbase.Models
 {
-    public class AccountsResponse : PaginatedResponse
+    public class AccountsPage : RecordsPage
     {
         [JsonProperty("accounts")]
         public IList<AccountResponse> Accounts { get; set; }

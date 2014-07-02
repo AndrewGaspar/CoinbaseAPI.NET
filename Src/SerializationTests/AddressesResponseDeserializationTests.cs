@@ -35,7 +35,7 @@ namespace Bitlet.Coinbase.Tests
         [TestMethod]
         public void TestAddressesDeserialization()
         {
-            var res = JsonConvert.DeserializeObject<AddressesResponse>(json);
+            var res = JsonConvert.DeserializeObject<AddressesPage>(json);
 
             Assert.AreEqual(res.TotalCount, 2);
             Assert.AreEqual(res.NumPages, 1);

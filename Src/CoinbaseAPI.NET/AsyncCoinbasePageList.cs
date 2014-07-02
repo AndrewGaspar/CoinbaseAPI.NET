@@ -33,7 +33,7 @@ namespace Bitlet.Coinbase
     }
 
     public class AsyncCoinbasePageList<TPaginated> : IAsyncReadOnlyList<TPaginated>
-        where TPaginated : PaginatedResponse
+        where TPaginated : RecordsPage
     {
         protected List<TPaginated> PageCache { get; private set; }
 
@@ -81,12 +81,8 @@ namespace Bitlet.Coinbase
             }
 
             var newParameters = Parameters != null ? new HttpValueCollection(Parameters) : new HttpValueCollection();
-            newParameters.AddOrUpdate("page", (index + 1).ToString());
-
-            if (ResultsPerPage.HasValue)
-            {
-                newParameters.AddOrUpdate("limit", ResultsPerPage.Value.ToString());
-            }
+            newParameters.SetPage(index + 1);
+            newParameters.SetLimit(ResultsPerPage);
 
             var page = await CoinbaseClient.GetAsync<TPaginated>(Endpoint, newParameters, Converters).ConfigureAwait(false);
 

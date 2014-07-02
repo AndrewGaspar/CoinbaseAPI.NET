@@ -52,12 +52,12 @@ namespace Bitlet.Coinbase.Tests
         [TestMethod]
         public void TestAccountsDeserialization()
         {
-            var accounts = JsonConvert.DeserializeObject<AccountsResponse>(json);
+            var accounts = JsonConvert.DeserializeObject<AccountsPage>(json);
 
             Assert.IsNotNull(accounts);
             Assert.IsNotNull(accounts.Accounts);
 
-            Assert.IsTrue(accounts is PaginatedResponse);
+            Assert.IsTrue(accounts is RecordsPage);
 
             var accountsList = accounts.Accounts;
 

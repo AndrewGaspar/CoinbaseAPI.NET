@@ -16,7 +16,7 @@ namespace Bitlet.Coinbase.Models
         IList<TransactionResponse> Transactions { get; set; }
     }
 
-    public class TransactionsResponse : PaginatedResponse, ITransactionsResponse
+    public class TransactionsPage : RecordsPage, ITransactionsResponse
     {
         [JsonProperty("current_user")]
         public ShortUserEntity CurrentUser { get; set; }

@@ -52,7 +52,7 @@ namespace Bitlet.Coinbase.Tests
         [TestMethod]
         public void TestTransfersDeserialization()
         {
-            var res = JsonConvert.DeserializeObject<TransfersResponse>(json);
+            var res = JsonConvert.DeserializeObject<TransfersPage>(json);
 
             Assert.AreEqual(res.TotalCount, 1);
             Assert.AreEqual(res.NumPages, 1);

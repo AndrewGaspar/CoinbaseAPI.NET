@@ -29,7 +29,7 @@ namespace Bitlet.Coinbase.Tests
         [TestMethod]
         public void TestContactsDeserialization()
         {
-            var res = JsonConvert.DeserializeObject<ContactsResponse>(json);
+            var res = JsonConvert.DeserializeObject<ContactsPage>(json);
 
             Assert.AreEqual(res.TotalCount, 2);
             Assert.AreEqual(res.NumPages, 1);
