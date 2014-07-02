@@ -211,6 +211,14 @@ namespace Bitlet.Coinbase
     /// </summary>
     public sealed class CoinbaseClient : DisposableObject
     {
+        /// <summary>
+        /// Custom JsonSerializer
+        /// </summary>
+        private static JsonSerializerSettings SerializationSettings = new JsonSerializerSettings()
+        {
+            NullValueHandling = NullValueHandling.Ignore
+        };
+
         private HttpClient client;
         private HttpClient WebClient
         {
@@ -304,7 +312,7 @@ namespace Bitlet.Coinbase
 
             RequirementsVerifier.EnsureSatisfactionOfRequirements(request);
 
-            return JsonConvert.SerializeObject(request);
+            return JsonConvert.SerializeObject(request, SerializationSettings);
         }
 
         /// <summary>
