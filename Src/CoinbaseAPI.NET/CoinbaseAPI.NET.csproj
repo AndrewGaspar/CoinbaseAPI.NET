@@ -34,7 +34,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="AsyncCoinbaseResultsList.cs" />
+    <Compile Include="AsyncCoinbaseRecordsList.cs" />
     <Compile Include="CoinbaseAuthentication.cs" />
     <Compile Include="CoinbaseClient.cs" />
     <Compile Include="AsyncCoinbasePageList.cs" />

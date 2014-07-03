@@ -32,7 +32,7 @@ namespace Bitlet.Coinbase
         }
     }
 
-    public class AsyncCoinbasePageList<TPaginated> : IAsyncReadOnlyList<TPaginated>
+    public class AsyncCoinbasePageList<TPaginated> : DisposableObject, IAsyncReadOnlyList<TPaginated>
         where TPaginated : RecordsPage
     {
         protected List<TPaginated> PageCache { get; private set; }
@@ -43,7 +43,23 @@ namespace Bitlet.Coinbase
 
         protected HttpValueCollection Parameters { get; private set; }
 
-        protected CoinbaseClient CoinbaseClient { get; private set; }
+        private CoinbaseClient client;
+        protected CoinbaseClient CoinbaseClient
+        {
+            get
+            {
+                if (Disposed)
+                {
+                    throw new ObjectDisposedException(this.GetType().FullName);
+                }
+
+                return client;
+            }
+            private set
+            {
+                client = value;
+            }
+        }
 
         protected JsonConverter[] Converters { get; private set; }
 
@@ -156,5 +172,10 @@ namespace Bitlet.Coinbase
             return (await Task.WhenAll(from i in Enumerable.Range(0, count) select GetPageUncheckedAsync(i))).ToList();
         }
         #endregion
+
+        protected override void DisposeManagedResources()
+        {
+            CoinbaseClient.Dispose(true);
+        }
     }
 }

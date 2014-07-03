@@ -8,10 +8,26 @@ namespace Bitlet.Coinbase
     using Models;
     using Utilities;
 
-    public class AsyncCoinbaseRecordsList<TResponse, TPage> : IAsyncReadOnlyList<TResponse>
+    public class AsyncCoinbaseRecordsList<TResponse, TPage> : DisposableObject, IAsyncReadOnlyList<TResponse>
         where TPage : RecordsPage
     {
-        protected AsyncCoinbasePageList<TPage> PageList { get; private set; }
+        private AsyncCoinbasePageList<TPage> pageList;
+        protected AsyncCoinbasePageList<TPage> PageList
+        {
+            get
+            {
+                if(Disposed)
+                {
+                    throw new ObjectDisposedException(this.GetType().FullName);
+                }
+
+                return pageList;
+            }
+            private set
+            {
+                pageList = value;
+            }
+        }
 
         public delegate IList<TResponse> GetResultsFromPage(TPage page);
 
@@ -72,6 +88,11 @@ namespace Bitlet.Coinbase
             var pagesList = await PageList.ToListAsync();
 
             return pagesList.SelectMany(page => resultsGetter(page)).ToList();
+        }
+
+        protected override void DisposeManagedResources()
+        {
+            throw new NotImplementedException();
         }
     }
 }

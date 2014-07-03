@@ -21,7 +21,7 @@ namespace Bitlet.Coinbase.Utilities
             }
         }
 
-        protected void Dispose(bool disposing)
+        public void Dispose(bool disposing)
         {
             if (disposing)
             {
